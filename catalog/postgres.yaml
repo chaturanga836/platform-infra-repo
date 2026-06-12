@@ -1,0 +1,9 @@
+engine: postgres
+label: PostgreSQL
+isolation:
+  instance: one_container_per_workspace
+  database: schema_inside_instance
+provision:
+  template: stacks/project/postgres.compose.template.yml
+  bootstrap: stacks/project/postgres.bootstrap.pgsql
+  network: data-plane-net

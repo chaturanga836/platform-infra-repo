@@ -1,0 +1,21 @@
+services:
+  postgres:
+    label: PostgreSQL
+    engine: postgres
+    available: true
+    provision_on: create_database
+  mysql:
+    label: MySQL
+    engine: mysql
+    available: false
+    provision_on: create_database
+  centrifugo:
+    label: Realtime
+    engine: centrifugo
+    available: false
+    provision_on: user_enable
+  minio:
+    label: Storage
+    engine: minio
+    available: false
+    provision_on: user_enable

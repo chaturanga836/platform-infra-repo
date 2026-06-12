@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "**/*.bootstrap.pgsql": "pgsql"
+  },
+  "mssql.intelliSense.enableErrorChecking": false
+}

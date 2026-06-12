@@ -1,0 +1,34 @@
+# Platform stack — run from repo root:
+#   docker compose -f stacks/platform/docker-compose.yml --profile backend up -d --build
+
+name: baas-platform
+
+services:
+  infra-service:
+    build:
+      context: ../..
+      dockerfile: infra-service/Dockerfile
+    container_name: baas-infra-service
+    restart: unless-stopped
+    profiles: [backend, full]
+    environment:
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:-changeme-internal-token}
+      PROVISION_MODE: ${PROVISION_MODE:-docker}
+      DATA_PLANE_NETWORK: ${DATA_PLANE_NETWORK:-data-plane-net}
+      LOCAL_POSTGRES_URL: ${LOCAL_POSTGRES_URL:-postgresql://elt:changeme@postgres:5432/postgres}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../../data/instances:/app/data/instances
+    ports:
+      - "${INFRA_SERVICE_PORT:-9000}:9000"
+    networks:
+      - elt-net
+      - data-plane-net
+
+networks:
+  elt-net:
+    external: true
+    name: elt-net
+  data-plane-net:
+    external: true
+    name: data-plane-net
