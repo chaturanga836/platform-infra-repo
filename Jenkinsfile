@@ -9,13 +9,23 @@ pipeline {
             }
         }
         stage('Deploy') {
-            when { branch 'master' }
+            when {
+                expression {
+                    def b = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    return b.contains('master')
+                }
+            }
             steps {
                 sh 'bash deploy.sh'
             }
         }
         stage('Health') {
-            when { branch 'master' }
+            when {
+                expression {
+                    def b = env.BRANCH_NAME ?: env.GIT_BRANCH ?: ''
+                    return b.contains('master')
+                }
+            }
             steps {
                 sh 'curl -sf http://127.0.0.1:${INFRA_SERVICE_PORT:-9000}/health'
             }
