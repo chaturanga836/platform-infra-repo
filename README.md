@@ -55,3 +55,47 @@ docker compose -f stacks/platform/docker-compose.yml --profile backend up -d --b
 ```
 
 Wire `etl-back` with `PLATFORM_INFRA_URL=http://localhost:9000`.
+
+## Production deploy (Jenkins / co-located with etl-back)
+
+Infra-service runs on the **same host** as etl-back via [etl-deployment](https://github.com/chaturanga836/etl-deployment). All repos must be siblings:
+
+```
+/opt/elt/   (or your deploy root)
+  etl-back/
+  elt-frontend/
+  platform-infra-repo/    ← this repo
+  etl-deployment/         ← compose entry point
+```
+
+Configure [etl-deployment/.env](https://github.com/chaturanga836/etl-deployment) on the server (see `.env.example`). Infra-relevant variables:
+
+| Variable | Purpose |
+|----------|---------|
+| `INTERNAL_SERVICE_TOKEN` | Shared secret with etl-back (`X-Internal-Token` header) |
+| `PROVISION_MODE` | `docker` in production |
+| `DATA_PLANE_NETWORK` | `data-plane-net` (created by etl-deployment compose) |
+| `INFRA_SERVICE_PORT` | Host port (default `9000`) |
+| `PLATFORM_INFRA_URL` | `http://infra-service:9000` (used by api container) |
+
+**Manual deploy** (same steps as Jenkins):
+
+```bash
+bash deploy.sh
+```
+
+Or from etl-deployment:
+
+```bash
+docker compose --profile backend up -d --build infra-service
+```
+
+**Jenkins:** Pipeline job uses [`Jenkinsfile`](Jenkinsfile) — see [`jenkins/JOB.md`](jenkins/JOB.md) for job setup.
+
+**Notes:**
+
+- `INTERNAL_SERVICE_TOKEN` must match etl-back. If you change it, redeploy both `infra-service` and `api`.
+- Redeploying infra-service does **not** destroy provisioned workspace databases — metadata persists in the `infra_instances` volume.
+- Do **not** run `docker compose down -v` on etl-deployment — that destroys instance metadata and Postgres volumes.
+- Host must have Docker socket access (`/var/run/docker.sock`) when `PROVISION_MODE=docker`.
+
