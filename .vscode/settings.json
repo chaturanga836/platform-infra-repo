@@ -2,5 +2,7 @@
   "files.associations": {
     "**/*.bootstrap.pgsql": "pgsql"
   },
-  "mssql.intelliSense.enableErrorChecking": false
+  "mssql.intelliSense.enableErrorChecking": false,
+  "python.defaultInterpreterPath": "${workspaceFolder}/infra-service/.venv/Scripts/python.exe",
+  "python.analysis.extraPaths": ["${workspaceFolder}/infra-service/src"]
 }
