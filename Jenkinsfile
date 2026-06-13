@@ -1,11 +1,6 @@
 pipeline {
     agent { label 'docker' }
 
-    environment {
-        DEPLOY_ROOT = '/opt/elt'
-        COMPOSE_PROFILE = 'backend'
-    }
-
     stages {
         stage('Test') {
             steps {
