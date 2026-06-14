@@ -4,8 +4,12 @@ set -euo pipefail
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$REPO_ROOT"
-git fetch origin master
-git reset --hard origin/master
+
+# Jenkins already checked out the commit; git fetch needs credentials in CI.
+if [ -z "${BUILD_NUMBER:-}" ]; then
+  git fetch origin master
+  git reset --hard origin/master
+fi
 
 docker network create elt-net 2>/dev/null || true
 docker network create data-plane-net 2>/dev/null || true
