@@ -21,7 +21,7 @@ cleanup_vol() {
 compose_in_volume() {
   local -a env_args=(-e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}")
   for key in INTERNAL_SERVICE_TOKEN PROVISION_MODE DATA_PLANE_NETWORK \
-    LOCAL_POSTGRES_URL INFRA_SERVICE_PORT DEPLOY_HOST; do
+    LOCAL_POSTGRES_URL INFRA_SERVICE_PORT INFRA_HEALTH_HOST; do
     if [ -n "${!key:-}" ]; then
       env_args+=(-e "${key}=${!key}")
     fi
@@ -71,9 +71,11 @@ compose_in_volume -f "$COMPOSE_FILE" --profile "$COMPOSE_PROFILE" down --remove-
 echo "=== Building and starting infra-service (compose) ==="
 compose_in_volume -f "$COMPOSE_FILE" --profile "$COMPOSE_PROFILE" up -d --build --force-recreate
 
-echo "=== Waiting for health ==="
+HEALTH_HOST="${INFRA_HEALTH_HOST:-127.0.0.1}"
+HEALTH_PORT="${INFRA_SERVICE_PORT:-9000}"
+echo "=== Waiting for health (http://${HEALTH_HOST}:${HEALTH_PORT}/health) ==="
 for i in $(seq 1 24); do
-  if curl -sf "http://${DEPLOY_HOST:-127.0.0.1}:${INFRA_SERVICE_PORT:-9000}/health"; then
+  if curl -sf "http://${HEALTH_HOST}:${HEALTH_PORT}/health"; then
     echo "Infra service OK"
     trap - EXIT
     cleanup_vol
@@ -85,5 +87,6 @@ for i in $(seq 1 24); do
     docker logs baas-infra-service --tail 80 2>/dev/null || true
     exit 1
   fi
+  echo "Health attempt ${i}/24 failed, retrying in 5s..."
   sleep 5
 done
