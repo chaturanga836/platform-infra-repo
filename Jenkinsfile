@@ -4,8 +4,7 @@ pipeline {
     stages {
         stage('Test') {
             steps {
-                sh 'pip install -r infra-service/requirements.txt pytest httpx'
-                sh 'cd infra-service && PYTHONPATH=src pytest tests -q'
+                sh 'bash jenkins/run-tests.sh'
             }
         }
         stage('Deploy') {
