@@ -34,7 +34,7 @@ docker network create data-plane-net
 
 1. **Test** — all branches: [`jenkins/run-tests.sh`](run-tests.sh) (pytest in Docker)
 2. **Deploy** — `master` only: [`deploy.sh`](../deploy.sh) (Jenkins uses [`jenkins/deploy-docker.sh`](deploy-docker.sh))
-3. **Health** — `master` only: `curl http://127.0.0.1:9000/health` (localhost only; port 9000 is internal, not exposed publicly)
+3. **Health** — `master` only: [`jenkins/wait-infra-health.sh`](wait-infra-health.sh) (localhost via host-network curl when Jenkins runs in Docker)
 
 ## Deploy ordering
 
