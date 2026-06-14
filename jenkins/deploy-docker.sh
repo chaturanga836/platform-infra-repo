@@ -21,7 +21,7 @@ cleanup_vol() {
 compose_in_volume() {
   local -a env_args=(-e "COMPOSE_PROJECT_NAME=${COMPOSE_PROJECT_NAME}")
   for key in INTERNAL_SERVICE_TOKEN PROVISION_MODE DATA_PLANE_NETWORK \
-    LOCAL_POSTGRES_URL INFRA_SERVICE_PORT; do
+    LOCAL_POSTGRES_URL INFRA_SERVICE_PORT DEPLOY_HOST; do
     if [ -n "${!key:-}" ]; then
       env_args+=(-e "${key}=${!key}")
     fi
@@ -73,7 +73,7 @@ compose_in_volume -f "$COMPOSE_FILE" --profile "$COMPOSE_PROFILE" up -d --build 
 
 echo "=== Waiting for health ==="
 for i in $(seq 1 24); do
-  if curl -sf "http://127.0.0.1:${INFRA_SERVICE_PORT:-9000}/health"; then
+  if curl -sf "http://${DEPLOY_HOST:-127.0.0.1}:${INFRA_SERVICE_PORT:-9000}/health"; then
     echo "Infra service OK"
     trap - EXIT
     cleanup_vol
