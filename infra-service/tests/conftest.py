@@ -1,1 +1,1 @@
-# Run from infra-service/: PYTHONPATH=src pytest tests/
+# Run from infra-service/: PYTHONPATH=. pytest tests/

@@ -24,5 +24,5 @@ tar cf - \
     set -e
     tar xf -
     pip install -q -r requirements.txt pytest
-    PYTHONPATH=src pytest tests -q
+    PYTHONPATH=. pytest tests -q
   '
