@@ -33,7 +33,7 @@ docker network create data-plane-net
 ## Pipeline stages
 
 1. **Test** — all branches: [`jenkins/run-tests.sh`](run-tests.sh) (pytest in Docker)
-2. **Deploy** — `master` only: [`deploy.sh`](../deploy.sh)
+2. **Deploy** — `master` only: [`deploy.sh`](../deploy.sh) (Jenkins uses [`jenkins/deploy-docker.sh`](deploy-docker.sh))
 3. **Health** — `master` only: `curl http://127.0.0.1:9000/health`
 
 ## Deploy ordering

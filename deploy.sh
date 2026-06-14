@@ -5,6 +5,11 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$REPO_ROOT"
 
+# Jenkins-in-Docker: host daemon cannot see /var/jenkins_home/workspace bind mounts.
+if [ -n "${BUILD_NUMBER:-}" ]; then
+  exec bash "${REPO_ROOT}/jenkins/deploy-docker.sh"
+fi
+
 # shellcheck source=jenkins/compose.sh
 source "${REPO_ROOT}/jenkins/compose.sh"
 
