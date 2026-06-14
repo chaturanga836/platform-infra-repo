@@ -5,6 +5,9 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 
 cd "$REPO_ROOT"
 
+# shellcheck source=jenkins/compose.sh
+source "${REPO_ROOT}/jenkins/compose.sh"
+
 # Jenkins already checked out the commit; git fetch needs credentials in CI.
 if [ -z "${BUILD_NUMBER:-}" ]; then
   git fetch origin master
@@ -21,7 +24,7 @@ if [ -f .env ]; then
   set +a
 fi
 
-docker compose -f stacks/platform/docker-compose.yml --profile backend up -d --build --force-recreate
+compose -f stacks/platform/docker-compose.yml --profile backend up -d --build --force-recreate
 
 curl -sf "http://127.0.0.1:${INFRA_SERVICE_PORT:-9000}/health"
 
