@@ -73,7 +73,13 @@ def docker_compose_up(compose_file: Path, project_name: str) -> None:
         "-d",
         "--remove-orphans",
     ]
-    subprocess.run(cmd, check=True, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        detail = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(
+            f"Command {cmd!r} returned non-zero exit status {result.returncode}"
+            + (f": {detail}" if detail else "")
+        )
 
 
 def wait_for_postgres(host: str, port: int, user: str, password: str, timeout: int = 90) -> None:
