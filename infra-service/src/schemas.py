@@ -11,6 +11,7 @@ class ExistingInstance(BaseModel):
     port: int = 5432
     admin_user: str
     admin_password: str
+    catalog_db: str = "app"
 
 
 class CreateDatabaseRequest(BaseModel):
@@ -27,6 +28,7 @@ class ServiceInstanceInfo(BaseModel):
     port: int
     admin_user: str
     admin_password: str
+    catalog_db: str = "app"
     created: bool
 
 

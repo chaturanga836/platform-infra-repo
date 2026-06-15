@@ -72,6 +72,7 @@ def _provision_docker_instance(workspace_id: int) -> ServiceInstanceInfo:
             port=int(existing["port"]),
             admin_user=existing["admin_user"],
             admin_password=existing["admin_password"],
+            catalog_db=existing.get("catalog_db", settings.POSTGRES_DB),
             created=False,
         )
 
@@ -93,9 +94,10 @@ def _provision_docker_instance(workspace_id: int) -> ServiceInstanceInfo:
         "port": 5432,
         "admin_user": settings.POSTGRES_USER,
         "admin_password": password,
+        "catalog_db": settings.POSTGRES_DB,
     }
     save_instance_meta(ref, meta)
-    return ServiceInstanceInfo(created=True, **meta)
+    return ServiceInstanceInfo(created=True, catalog_db=settings.POSTGRES_DB, **meta)
 
 
 def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
@@ -110,6 +112,7 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
             port=int(existing["port"]),
             admin_user=existing["admin_user"],
             admin_password=existing["admin_password"],
+            catalog_db=existing.get("catalog_db", settings.POSTGRES_DB),
             created=False,
         )
 
@@ -120,6 +123,7 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
     password = parsed.password or ""
     host = parsed.hostname or "localhost"
     port = parsed.port or 5432
+    catalog_db = (parsed.path or "/postgres").lstrip("/") or "postgres"
 
     meta = {
         "instance_ref": ref,
@@ -128,9 +132,10 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
         "port": port,
         "admin_user": user,
         "admin_password": password,
+        "catalog_db": catalog_db,
     }
     save_instance_meta(ref, meta)
-    return ServiceInstanceInfo(created=True, **meta)
+    return ServiceInstanceInfo(created=True, catalog_db=catalog_db, **meta)
 
 
 def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseResponse:
@@ -144,6 +149,7 @@ def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseRespo
             port=body.existing_instance.port,
             admin_user=body.existing_instance.admin_user,
             admin_password=body.existing_instance.admin_password,
+            catalog_db=body.existing_instance.catalog_db,
             created=False,
         )
     elif settings.PROVISION_MODE == "docker":
