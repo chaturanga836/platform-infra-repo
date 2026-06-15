@@ -43,15 +43,7 @@ def _create_schema(admin_connection_url: str, schema_name: str) -> None:
     engine = create_engine(admin_connection_url, isolation_level="AUTOCOMMIT")
     try:
         with engine.connect() as conn:
-            exists = conn.execute(
-                text(
-                    "SELECT 1 FROM information_schema.schemata WHERE schema_name = :name"
-                ),
-                {"name": schema_name},
-            ).scalar()
-            if exists:
-                raise ValueError(f"Schema '{schema_name}' already exists")
-            conn.execute(text(f'CREATE SCHEMA "{schema_name}"'))
+            conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema_name}"'))
     finally:
         engine.dispose()
 
