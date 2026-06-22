@@ -19,3 +19,13 @@ services:
     engine: minio
     available: false
     provision_on: user_enable
+  redis:
+    label: Redis Queue
+    engine: redis
+    available: true
+    provision_on: org_enable_queue
+  rabbitmq:
+    label: RabbitMQ
+    engine: rabbitmq
+    available: false
+    provision_on: org_enable_queue

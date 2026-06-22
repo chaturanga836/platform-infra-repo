@@ -42,3 +42,17 @@ class CreateDatabaseResponse(BaseModel):
     instance: ServiceInstanceInfo
     database: DatabaseInfo
     provisioned_at: datetime
+
+
+class QueueBrokerRequest(BaseModel):
+    engine: Literal["redis", "rabbitmq"] = "redis"
+
+
+class QueueBrokerResponse(BaseModel):
+    instance_ref: str
+    container_name: str
+    host: str
+    port: int
+    redis_url: Optional[str] = None
+    created: bool
+    provisioned_at: datetime

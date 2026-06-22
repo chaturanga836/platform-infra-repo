@@ -21,6 +21,14 @@ def container_name(workspace_id: int, engine: str) -> str:
     return f"{instance_ref(workspace_id, engine)}-db"
 
 
+def org_instance_ref(org_id: int, engine: str) -> str:
+    return f"org-{org_id}-{engine}"
+
+
+def org_container_name(org_id: int, engine: str) -> str:
+    return f"{org_instance_ref(org_id, engine)}-broker"
+
+
 def _instance_meta_path(ref: str) -> Path:
     path = settings.INSTANCES_DATA_PATH / f"{ref}.json"
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -56,6 +64,26 @@ def render_compose(workspace_id: int, engine: str, password: str) -> Path:
     content = content.replace("${POSTGRES_USER}", settings.POSTGRES_USER)
     content = content.replace("${POSTGRES_DB}", settings.POSTGRES_DB)
     content = content.replace("${POSTGRES_IMAGE}", settings.POSTGRES_IMAGE)
+    content = content.replace("${DATA_PLANE_NETWORK}", settings.DATA_PLANE_NETWORK)
+    out_file.write_text(content, encoding="utf-8")
+    return out_file
+
+
+def render_org_compose(org_id: int, engine: str, password: str) -> Path:
+    template_path = settings.STACKS_PATH / "project" / f"{engine}.compose.template.yml"
+    if not template_path.is_file():
+        raise FileNotFoundError(f"Missing stack template: {template_path}")
+
+    ref = org_instance_ref(org_id, engine)
+    out_dir = settings.INSTANCES_DATA_PATH / ref
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_file = out_dir / "docker-compose.yml"
+
+    content = template_path.read_text(encoding="utf-8")
+    content = content.replace("${REDIS_IMAGE}", settings.REDIS_IMAGE)
+    content = content.replace("${INSTANCE_REF}", ref)
+    content = content.replace("${CONTAINER_NAME}", org_container_name(org_id, engine))
+    content = content.replace("${REDIS_PASSWORD}", password)
     content = content.replace("${DATA_PLANE_NETWORK}", settings.DATA_PLANE_NETWORK)
     out_file.write_text(content, encoding="utf-8")
     return out_file
@@ -103,6 +131,28 @@ def wait_for_postgres(host: str, port: int, user: str, password: str, timeout: i
             last_err = exc
             time.sleep(2)
     raise TimeoutError(f"Postgres not ready at {host}:{port}: {last_err}")
+
+
+def wait_for_redis(host: str, port: int, password: str | None = None, timeout: int = 60) -> None:
+    import redis
+
+    deadline = time.time() + timeout
+    last_err: Exception | None = None
+    while time.time() < deadline:
+        try:
+            client = redis.Redis(
+                host=host,
+                port=port,
+                password=password,
+                socket_connect_timeout=3,
+            )
+            client.ping()
+            client.close()
+            return
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+            time.sleep(2)
+    raise TimeoutError(f"Redis not ready at {host}:{port}: {last_err}")
 
 
 def admin_url(host: str, port: int, user: str, password: str, dbname: str | None = None) -> str:

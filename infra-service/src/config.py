@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     POSTGRES_USER: str = "baas"
     POSTGRES_DB: str = "app"
 
+    REDIS_IMAGE: str = "redis:7.2-alpine"
+    LOCAL_REDIS_URL: str = "redis://localhost:6379/1"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

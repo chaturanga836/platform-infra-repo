@@ -1,0 +1,24 @@
+services:
+  redis:
+    image: ${REDIS_IMAGE}
+    container_name: ${CONTAINER_NAME}
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - redis_data:/data
+    networks:
+      - data-plane-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+volumes:
+  redis_data:
+    name: ${INSTANCE_REF}_redis_data
+
+networks:
+  data-plane-net:
+    external: true
+    name: ${DATA_PLANE_NETWORK}
