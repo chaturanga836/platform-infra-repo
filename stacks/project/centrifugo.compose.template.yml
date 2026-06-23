@@ -3,7 +3,7 @@ services:
     image: ${CENTRIFUGO_IMAGE}
     container_name: ${CONTAINER_NAME}
     restart: unless-stopped
-    command: centrifugo --config=/centrifugo/config.json
+    command: centrifugo --config=/centrifugo/config.json --health
     volumes:
       - ${CONFIG_PATH}:/centrifugo/config.json:ro
     networks:

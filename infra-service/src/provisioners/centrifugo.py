@@ -13,6 +13,7 @@ from src.docker_driver import (
     load_instance_meta,
     org_container_name,
     org_instance_ref,
+    remove_container_if_exists,
     render_org_centrifugo_compose,
     save_instance_meta,
     wait_for_centrifugo,
@@ -82,6 +83,11 @@ def provision_org_centrifugo(org_id: int) -> dict:
     admin_secret = secrets.token_urlsafe(24)
 
     ensure_data_plane_network()
+    container_name = org_container_name(org_id, "centrifugo")
+    # Drop orphaned brokers from a prior failed provision (no saved instance meta).
+    if broker_container_running(container_name) and not existing:
+        remove_container_if_exists(container_name)
+
     compose_file, config_path = render_org_centrifugo_compose(
         org_id,
         api_key=api_key,
@@ -89,7 +95,7 @@ def provision_org_centrifugo(org_id: int) -> dict:
         admin_password=admin_password,
         admin_secret=admin_secret,
     )
-    docker_compose_up(compose_file, project_name=ref)
+    docker_compose_up(compose_file, project_name=ref, force_recreate=True)
     host = org_container_name(org_id, "centrifugo")
     port = 8000
     wait_for_centrifugo(host, port)
