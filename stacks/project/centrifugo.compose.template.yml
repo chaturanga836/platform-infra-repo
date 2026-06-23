@@ -1,0 +1,20 @@
+services:
+  centrifugo:
+    image: ${CENTRIFUGO_IMAGE}
+    container_name: ${CONTAINER_NAME}
+    restart: unless-stopped
+    command: centrifugo --config=/centrifugo/config.json
+    volumes:
+      - ${CONFIG_PATH}:/centrifugo/config.json:ro
+    networks:
+      - data-plane-net
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+networks:
+  data-plane-net:
+    external: true
+    name: ${DATA_PLANE_NETWORK}

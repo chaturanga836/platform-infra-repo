@@ -1,6 +1,7 @@
 from fastapi import Depends, FastAPI, HTTPException
 
 from src.auth import verify_internal_token
+from src.provisioners import centrifugo as centrifugo_provisioner
 from src.provisioners import postgres as postgres_provisioner
 from src.provisioners import redis as redis_provisioner
 from src.schemas import (
@@ -8,6 +9,8 @@ from src.schemas import (
     CreateDatabaseResponse,
     QueueBrokerRequest,
     QueueBrokerResponse,
+    RealtimeBrokerRequest,
+    RealtimeBrokerResponse,
 )
 
 app = FastAPI(title="BaaS Platform Infra Service", version="0.1.0")
@@ -69,3 +72,35 @@ def provision_queue_broker(org_id: int, body: QueueBrokerRequest):
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Queue broker provisioning failed: {exc}") from exc
+
+
+@app.post(
+    "/internal/orgs/{org_id}/realtime-brokers",
+    response_model=RealtimeBrokerResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def provision_realtime_broker(org_id: int, body: RealtimeBrokerRequest):
+    if body.engine != "centrifugo":
+        raise HTTPException(status_code=501, detail=f"Engine '{body.engine}' is not available yet")
+    try:
+        from datetime import datetime, timezone
+
+        result = centrifugo_provisioner.provision_org_centrifugo(org_id)
+        return RealtimeBrokerResponse(
+            instance_ref=result["instance_ref"],
+            container_name=result["container_name"],
+            host=result["host"],
+            port=int(result["port"]),
+            api_url=result["api_url"],
+            ws_url=result["ws_url"],
+            api_key=result["api_key"],
+            token_hmac_secret_key=result["token_hmac_secret_key"],
+            created=bool(result.get("created")),
+            provisioned_at=datetime.now(timezone.utc),
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Realtime broker provisioning failed: {exc}") from exc

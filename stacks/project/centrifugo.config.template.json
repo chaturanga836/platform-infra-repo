@@ -1,0 +1,8 @@
+{
+  "token_hmac_secret_key": "${TOKEN_HMAC_SECRET}",
+  "api_key": "${API_KEY}",
+  "admin_password": "${ADMIN_PASSWORD}",
+  "admin_secret": "${ADMIN_SECRET}",
+  "allowed_origins": ["*"],
+  "log_level": "info"
+}

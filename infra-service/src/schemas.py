@@ -56,3 +56,20 @@ class QueueBrokerResponse(BaseModel):
     redis_url: Optional[str] = None
     created: bool
     provisioned_at: datetime
+
+
+class RealtimeBrokerRequest(BaseModel):
+    engine: Literal["centrifugo"] = "centrifugo"
+
+
+class RealtimeBrokerResponse(BaseModel):
+    instance_ref: str
+    container_name: str
+    host: str
+    port: int
+    api_url: str
+    ws_url: str
+    api_key: str
+    token_hmac_secret_key: str
+    created: bool
+    provisioned_at: datetime

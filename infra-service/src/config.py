@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     REDIS_IMAGE: str = "redis:7.2-alpine"
     LOCAL_REDIS_URL: str = "redis://localhost:6379/1"
 
+    CENTRIFUGO_IMAGE: str = "centrifugo/centrifugo:v5"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

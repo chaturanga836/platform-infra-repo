@@ -69,6 +69,62 @@ def render_compose(workspace_id: int, engine: str, password: str) -> Path:
     return out_file
 
 
+def render_org_centrifugo_compose(
+    org_id: int,
+    *,
+    api_key: str,
+    token_hmac_secret_key: str,
+    admin_password: str,
+    admin_secret: str,
+) -> tuple[Path, Path]:
+    compose_template = settings.STACKS_PATH / "project" / "centrifugo.compose.template.yml"
+    config_template = settings.STACKS_PATH / "project" / "centrifugo.config.template.json"
+    if not compose_template.is_file():
+        raise FileNotFoundError(f"Missing stack template: {compose_template}")
+    if not config_template.is_file():
+        raise FileNotFoundError(f"Missing config template: {config_template}")
+
+    ref = org_instance_ref(org_id, "centrifugo")
+    out_dir = settings.INSTANCES_DATA_PATH / ref
+    out_dir.mkdir(parents=True, exist_ok=True)
+    compose_file = out_dir / "docker-compose.yml"
+    config_file = out_dir / "config.json"
+
+    config_content = config_template.read_text(encoding="utf-8")
+    config_content = config_content.replace("${TOKEN_HMAC_SECRET}", token_hmac_secret_key)
+    config_content = config_content.replace("${API_KEY}", api_key)
+    config_content = config_content.replace("${ADMIN_PASSWORD}", admin_password)
+    config_content = config_content.replace("${ADMIN_SECRET}", admin_secret)
+    config_file.write_text(config_content, encoding="utf-8")
+
+    content = compose_template.read_text(encoding="utf-8")
+    content = content.replace("${CENTRIFUGO_IMAGE}", settings.CENTRIFUGO_IMAGE)
+    content = content.replace("${INSTANCE_REF}", ref)
+    content = content.replace("${CONTAINER_NAME}", org_container_name(org_id, "centrifugo"))
+    content = content.replace("${CONFIG_PATH}", str(config_file.resolve()))
+    content = content.replace("${DATA_PLANE_NETWORK}", settings.DATA_PLANE_NETWORK)
+    compose_file.write_text(content, encoding="utf-8")
+    return compose_file, config_file
+
+
+def wait_for_centrifugo(host: str, port: int, timeout: int = 60) -> None:
+    import urllib.error
+    import urllib.request
+
+    deadline = time.time() + timeout
+    url = f"http://{host}:{port}/health"
+    last_err: Exception | None = None
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen(url, timeout=3) as resp:
+                if resp.status == 200:
+                    return
+        except Exception as exc:  # noqa: BLE001
+            last_err = exc
+            time.sleep(2)
+    raise TimeoutError(f"Centrifugo not ready at {host}:{port}: {last_err}")
+
+
 def render_org_compose(org_id: int, engine: str, password: str) -> Path:
     template_path = settings.STACKS_PATH / "project" / f"{engine}.compose.template.yml"
     if not template_path.is_file():

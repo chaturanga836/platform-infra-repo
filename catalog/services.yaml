@@ -12,7 +12,7 @@ services:
   centrifugo:
     label: Realtime
     engine: centrifugo
-    available: false
+    available: true
     provision_on: user_enable
   minio:
     label: Storage
