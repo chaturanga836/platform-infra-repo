@@ -9,7 +9,7 @@ services:
     networks:
       - data-plane-net
     healthcheck:
-      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8000/health"]
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8000/health"]
       interval: 5s
       timeout: 5s
       retries: 12

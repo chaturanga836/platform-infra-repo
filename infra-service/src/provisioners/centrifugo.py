@@ -7,6 +7,7 @@ import secrets
 
 from src.config import settings
 from src.docker_driver import (
+    broker_container_running,
     docker_compose_up,
     ensure_data_plane_network,
     load_instance_meta,
@@ -29,18 +30,20 @@ def provision_org_centrifugo(org_id: int) -> dict:
     ref = org_instance_ref(org_id, "centrifugo")
     existing = load_instance_meta(ref)
     if existing:
-        urls = _build_urls(existing["host"], int(existing["port"]))
-        return {
-            "instance_ref": ref,
-            "container_name": existing["container_name"],
-            "host": existing["host"],
-            "port": int(existing["port"]),
-            "api_url": existing.get("api_url") or urls["api_url"],
-            "ws_url": existing.get("ws_url") or urls["ws_url"],
-            "api_key": existing["api_key"],
-            "token_hmac_secret_key": existing["token_hmac_secret_key"],
-            "created": False,
-        }
+        container_name = existing.get("container_name") or org_container_name(org_id, "centrifugo")
+        if broker_container_running(container_name):
+            urls = _build_urls(existing["host"], int(existing["port"]))
+            return {
+                "instance_ref": ref,
+                "container_name": container_name,
+                "host": existing["host"],
+                "port": int(existing["port"]),
+                "api_url": existing.get("api_url") or urls["api_url"],
+                "ws_url": existing.get("ws_url") or urls["ws_url"],
+                "api_key": existing["api_key"],
+                "token_hmac_secret_key": existing["token_hmac_secret_key"],
+                "created": False,
+            }
 
     if settings.PROVISION_MODE == "local":
         api_key = secrets.token_urlsafe(32)

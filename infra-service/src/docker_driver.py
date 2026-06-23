@@ -107,22 +107,76 @@ def render_org_centrifugo_compose(
     return compose_file, config_file
 
 
-def wait_for_centrifugo(host: str, port: int, timeout: int = 60) -> None:
-    import urllib.error
+def wait_for_centrifugo(host: str, port: int, timeout: int = 120) -> None:
+    """Wait until the Centrifugo container is serving /health.
+
+    Prefer in-container probes via ``docker exec`` so infra-service does not need
+    cross-container DNS on the data-plane network.
+    """
     import urllib.request
 
+    container = host
     deadline = time.time() + timeout
-    url = f"http://{host}:{port}/health"
-    last_err: Exception | None = None
+    last_detail = f"container {container} not ready"
+
     while time.time() < deadline:
+        inspect = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Status}}", container],
+            capture_output=True,
+            text=True,
+        )
+        if inspect.returncode != 0:
+            last_detail = (inspect.stderr or inspect.stdout or "").strip() or last_detail
+            time.sleep(2)
+            continue
+
+        state = inspect.stdout.strip()
+        if state != "running":
+            last_detail = f"container state={state}"
+            time.sleep(2)
+            continue
+
+        for cmd in (
+            ["docker", "exec", container, "wget", "-q", "--spider", "http://127.0.0.1:8000/health"],
+            ["docker", "exec", container, "sh", "-c", "wget -q --spider http://127.0.0.1:8000/health"],
+        ):
+            probe = subprocess.run(cmd, capture_output=True, text=True)
+            if probe.returncode == 0:
+                return
+
+        health = subprocess.run(
+            [
+                "docker",
+                "inspect",
+                "-f",
+                "{{if .State.Health}}{{.State.Health.Status}}{{end}}",
+                container,
+            ],
+            capture_output=True,
+            text=True,
+        )
+        if health.returncode == 0 and health.stdout.strip() == "healthy":
+            return
+
         try:
-            with urllib.request.urlopen(url, timeout=3) as resp:
+            with urllib.request.urlopen(f"http://{host}:{port}/health", timeout=3) as resp:
                 if resp.status == 200:
                     return
         except Exception as exc:  # noqa: BLE001
-            last_err = exc
-            time.sleep(2)
-    raise TimeoutError(f"Centrifugo not ready at {host}:{port}: {last_err}")
+            last_detail = str(exc)
+
+        time.sleep(2)
+
+    raise TimeoutError(f"Centrifugo not ready ({container}): {last_detail}")
+
+
+def broker_container_running(container_name: str) -> bool:
+    result = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", container_name],
+        capture_output=True,
+        text=True,
+    )
+    return result.returncode == 0 and result.stdout.strip() == "true"
 
 
 def render_org_compose(org_id: int, engine: str, password: str) -> Path:
