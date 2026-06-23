@@ -3,6 +3,7 @@
   "api_key": "${API_KEY}",
   "admin_password": "${ADMIN_PASSWORD}",
   "admin_secret": "${ADMIN_SECRET}",
+  "health": true,
   "allowed_origins": ["*"],
   "log_level": "info"
 }

@@ -136,13 +136,14 @@ def wait_for_centrifugo(host: str, port: int, timeout: int = 120) -> None:
             time.sleep(2)
             continue
 
-        for cmd in (
-            ["docker", "exec", container, "wget", "-q", "--spider", "http://127.0.0.1:8000/health"],
-            ["docker", "exec", container, "sh", "-c", "wget -q --spider http://127.0.0.1:8000/health"],
-        ):
-            probe = subprocess.run(cmd, capture_output=True, text=True)
-            if probe.returncode == 0:
-                return
+        for url in ("http://127.0.0.1:8000/health", "http://127.0.0.1:8000/"):
+            for cmd in (
+                ["docker", "exec", container, "wget", "-q", "--spider", url],
+                ["docker", "exec", container, "sh", "-c", f"wget -q --spider {url}"],
+            ):
+                probe = subprocess.run(cmd, capture_output=True, text=True)
+                if probe.returncode == 0:
+                    return
 
         health = subprocess.run(
             [
