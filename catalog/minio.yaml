@@ -1,0 +1,11 @@
+engine: minio
+label: Storage
+isolation:
+  trial: shared_bucket_prefix
+  paid: one_container_per_workspace
+provision:
+  shared_template: stacks/platform/shared-minio.compose.template.yml
+  dedicated_template: stacks/project/minio.compose.template.yml
+  network: data-plane-net
+  shared_bucket: crypto-lake
+  dedicated_bucket: data

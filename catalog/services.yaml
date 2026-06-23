@@ -17,8 +17,11 @@ services:
   minio:
     label: Storage
     engine: minio
-    available: false
-    provision_on: user_enable
+    available: true
+    provision_on: create_workspace
+    isolation:
+      trial: shared_bucket_prefix
+      paid: one_container_per_workspace
   redis:
     label: Redis Queue
     engine: redis

@@ -73,3 +73,49 @@ class RealtimeBrokerResponse(BaseModel):
     token_hmac_secret_key: str
     created: bool
     provisioned_at: datetime
+
+
+class SharedStorageResponse(BaseModel):
+    instance_ref: str
+    container_name: str
+    host: str
+    port: int
+    endpoint_url: str
+    bucket: str
+    access_key: str
+    secret_key: str
+    created: bool
+    provisioned_at: datetime
+
+
+class ExistingMinioInstance(BaseModel):
+    instance_ref: str
+    container_name: str
+    host: str
+    port: int = 9000
+    endpoint_url: str
+    bucket: str = "data"
+    access_key: str
+    secret_key: str
+
+
+class ProvisionStorageRequest(BaseModel):
+    workspace_id: int = Field(ge=1)
+    org_id: int = Field(ge=1)
+    mode: Literal["shared", "dedicated"] = "shared"
+    existing_instance: Optional[ExistingMinioInstance] = None
+
+
+class ProvisionStorageResponse(BaseModel):
+    mode: Literal["shared", "dedicated"]
+    instance_ref: str
+    container_name: str
+    host: str
+    port: int
+    endpoint_url: str
+    bucket: str
+    prefix: str = ""
+    access_key: str
+    secret_key: str
+    created: bool
+    provisioned_at: datetime

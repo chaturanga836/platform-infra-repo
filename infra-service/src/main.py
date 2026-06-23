@@ -2,15 +2,20 @@ from fastapi import Depends, FastAPI, HTTPException
 
 from src.auth import verify_internal_token
 from src.provisioners import centrifugo as centrifugo_provisioner
+from src.provisioners import minio as minio_provisioner
+from src.provisioners import minio_shared as minio_shared_provisioner
 from src.provisioners import postgres as postgres_provisioner
 from src.provisioners import redis as redis_provisioner
 from src.schemas import (
     CreateDatabaseRequest,
     CreateDatabaseResponse,
+    ProvisionStorageRequest,
+    ProvisionStorageResponse,
     QueueBrokerRequest,
     QueueBrokerResponse,
     RealtimeBrokerRequest,
     RealtimeBrokerResponse,
+    SharedStorageResponse,
 )
 
 app = FastAPI(title="BaaS Platform Infra Service", version="0.1.0")
@@ -104,3 +109,51 @@ def provision_realtime_broker(org_id: int, body: RealtimeBrokerRequest):
         raise HTTPException(status_code=504, detail=str(exc)) from exc
     except Exception as exc:  # noqa: BLE001
         raise HTTPException(status_code=500, detail=f"Realtime broker provisioning failed: {exc}") from exc
+
+
+@app.post(
+    "/internal/platform/storage/shared",
+    response_model=SharedStorageResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def ensure_shared_storage():
+    try:
+        from datetime import datetime, timezone
+
+        result = minio_shared_provisioner.ensure_shared_minio()
+        return SharedStorageResponse(
+            instance_ref=result["instance_ref"],
+            container_name=result["container_name"],
+            host=result["host"],
+            port=int(result["port"]),
+            endpoint_url=result["endpoint_url"],
+            bucket=result["bucket"],
+            access_key=result["access_key"],
+            secret_key=result["secret_key"],
+            created=bool(result.get("created")),
+            provisioned_at=datetime.now(timezone.utc),
+        )
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Shared storage provisioning failed: {exc}") from exc
+
+
+@app.post(
+    "/internal/projects/{workspace_id}/storage",
+    response_model=ProvisionStorageResponse,
+    dependencies=[Depends(verify_internal_token)],
+)
+def provision_workspace_storage(workspace_id: int, body: ProvisionStorageRequest):
+    if body.workspace_id != workspace_id:
+        raise HTTPException(status_code=400, detail="workspace_id mismatch")
+    try:
+        return minio_provisioner.provision_workspace_storage(body)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+    except TimeoutError as exc:
+        raise HTTPException(status_code=504, detail=str(exc)) from exc
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"Storage provisioning failed: {exc}") from exc

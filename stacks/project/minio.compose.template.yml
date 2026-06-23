@@ -1,0 +1,28 @@
+services:
+  minio:
+    image: ${MINIO_IMAGE}
+    container_name: ${CONTAINER_NAME}
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - data-plane-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+volumes:
+  minio_data:
+    name: ${INSTANCE_REF}_minio_data
+
+networks:
+  data-plane-net:
+    external: true
+    name: ${DATA_PLANE_NETWORK}

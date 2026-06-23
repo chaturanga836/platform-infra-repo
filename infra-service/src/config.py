@@ -29,6 +29,13 @@ class Settings(BaseSettings):
 
     CENTRIFUGO_IMAGE: str = "centrifugo/centrifugo:v5"
 
+    MINIO_IMAGE: str = "minio/minio:RELEASE.2024-12-18T13-15-44Z"
+    SHARED_MINIO_BUCKET: str = "crypto-lake"
+    DEDICATED_MINIO_BUCKET: str = "data"
+    LOCAL_MINIO_ENDPOINT: str = "http://localhost:9000"
+    LOCAL_MINIO_ACCESS_KEY: str = "minioadmin"
+    LOCAL_MINIO_SECRET_KEY: str = "minioadmin"
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 
