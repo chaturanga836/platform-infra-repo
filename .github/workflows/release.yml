@@ -44,3 +44,15 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Set GHCR package visibility to public
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          OWNER="${{ github.repository_owner }}"
+          PKG="${{ env.IMAGE_NAME }}"
+          if gh api "/orgs/${OWNER}/packages/container/${PKG}" &>/dev/null; then
+            gh api --method PATCH "/orgs/${OWNER}/packages/container/${PKG}" -f visibility=public
+          else
+            gh api --method PATCH "/user/packages/container/${PKG}" -f visibility=public
+          fi
