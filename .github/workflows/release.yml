@@ -23,7 +23,7 @@ jobs:
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
+          username: ${{ github.repository_owner }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Docker metadata
@@ -47,12 +47,5 @@ jobs:
 
       - name: Set GHCR package visibility to public
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          OWNER="${{ github.repository_owner }}"
-          PKG="${{ env.IMAGE_NAME }}"
-          if gh api "/orgs/${OWNER}/packages/container/${PKG}" &>/dev/null; then
-            gh api --method PATCH "/orgs/${OWNER}/packages/container/${PKG}" -f visibility=public
-          else
-            gh api --method PATCH "/user/packages/container/${PKG}" -f visibility=public
-          fi
+          GH_TOKEN: ${{ secrets.PACKAGES_TOKEN || secrets.RELEASE_PAT || secrets.GITHUB_TOKEN }}
+        run: bash .github/scripts/set-package-public.sh "${{ env.IMAGE_NAME }}" "${{ github.repository_owner }}"
