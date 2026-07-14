@@ -303,7 +303,56 @@ def _minio_http_ready(host: str, port: int) -> bool:
         return False
 
 
+def _container_ips(container: str) -> list[str]:
+    inspect = subprocess.run(
+        [
+            "docker",
+            "inspect",
+            "-f",
+            "{{range .NetworkSettings.Networks}}{{.IPAddress}} {{end}}",
+            container,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if inspect.returncode != 0:
+        return []
+    return [ip for ip in inspect.stdout.strip().split() if ip]
+
+
+def ensure_container_on_network(container: str, network: str) -> None:
+    """Attach container to network if missing (idempotent)."""
+    inspect = subprocess.run(
+        [
+            "docker",
+            "inspect",
+            "-f",
+            "{{range $k, $v := .NetworkSettings.Networks}}{{$k}} {{end}}",
+            container,
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if inspect.returncode != 0:
+        return
+    attached = set(inspect.stdout.strip().split())
+    if network in attached:
+        return
+    subprocess.run(
+        ["docker", "network", "connect", network, container],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+
 def wait_for_minio(host: str, port: int, timeout: int = 120) -> None:
+    """Wait until MinIO accepts /minio/health/live.
+
+    Tries DNS hostname first, then container IPs (more reliable when DNS
+    between compose projects is flaky). Ensures the container is on the
+    data-plane network before probing.
+    """
     container = host
     deadline = time.time() + timeout
     last_detail = f"container {container} not ready"
@@ -325,10 +374,24 @@ def wait_for_minio(host: str, port: int, timeout: int = 120) -> None:
             time.sleep(2)
             continue
 
-        if _minio_http_ready(host, port):
-            return
+        ensure_container_on_network(container, settings.DATA_PLANE_NETWORK)
 
-        last_detail = f"http://{host}:{port}/minio/health/live not ready"
+        probe_targets = [host, *(_container_ips(container))]
+        # Preserve order while de-duplicating
+        seen: set[str] = set()
+        unique_targets: list[str] = []
+        for target in probe_targets:
+            if target and target not in seen:
+                seen.add(target)
+                unique_targets.append(target)
+
+        for target in unique_targets:
+            if _minio_http_ready(target, port):
+                return
+
+        last_detail = (
+            f"http://{{{','.join(unique_targets) or host}}}:{port}/minio/health/live not ready"
+        )
         time.sleep(2)
 
     raise TimeoutError(f"MinIO not ready ({container}): {last_detail}")
