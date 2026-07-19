@@ -1,4 +1,4 @@
-"""Postgres: one container per workspace; additional databases are schemas."""
+"""Postgres: schemas on shared install-time SQL (never per-workspace containers)."""
 
 from __future__ import annotations
 
@@ -149,19 +149,24 @@ def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseRespo
     schema_name = validate_schema_name(body.database_name)
 
     if body.existing_instance:
-        instance = ServiceInstanceInfo(
-            instance_ref=body.existing_instance.instance_ref,
-            container_name=body.existing_instance.container_name,
-            host=body.existing_instance.host,
-            port=body.existing_instance.port,
-            admin_user=body.existing_instance.admin_user,
-            admin_password=body.existing_instance.admin_password,
-            catalog_db=body.existing_instance.catalog_db,
-            created=False,
-        )
-    elif settings.PROVISION_MODE == "docker":
-        instance = _provision_docker_instance(body.workspace_id)
+        # Ignore leftover ws-*-postgres-db refs — always use shared SQL.
+        host = (body.existing_instance.host or "").strip()
+        if host.startswith("ws-") and host.endswith("-postgres-db"):
+            instance = _provision_local_instance(body.workspace_id)
+        else:
+            instance = ServiceInstanceInfo(
+                instance_ref=body.existing_instance.instance_ref,
+                container_name=body.existing_instance.container_name,
+                host=body.existing_instance.host,
+                port=body.existing_instance.port,
+                admin_user=body.existing_instance.admin_user,
+                admin_password=body.existing_instance.admin_password,
+                catalog_db=body.existing_instance.catalog_db,
+                created=False,
+            )
     else:
+        # Studio project DBs are schemas on LOCAL_POSTGRES_URL / shared postgres.
+        # Never spawn ws-{id}-postgres-db containers (PROVISION_MODE=docker is ignored).
         instance = _provision_local_instance(body.workspace_id)
 
     # Prefer container IP for admin SQL from infra-service (DNS can be flaky).
