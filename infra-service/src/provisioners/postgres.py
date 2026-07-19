@@ -18,6 +18,7 @@ from src.docker_driver import (
     instance_ref,
     load_instance_meta,
     render_compose,
+    resolve_container_connect_host,
     save_instance_meta,
     wait_for_postgres,
 )
@@ -82,15 +83,21 @@ def _provision_docker_instance(workspace_id: int) -> ServiceInstanceInfo:
     project_name = ref.replace("-", "_")
     docker_compose_up(compose_file, project_name)
 
-    host = container_name(workspace_id, "postgres")
-    wait_for_postgres(host, 5432, settings.POSTGRES_USER, password)
-    admin_connection = admin_url(host, 5432, settings.POSTGRES_USER, password)
+    # Published hostname for other containers on data-plane-net.
+    published_host = container_name(workspace_id, "postgres")
+    # Admin ops from infra-service may need the container IP when DNS is flaky.
+    connect_host = wait_for_postgres(
+        published_host, 5432, settings.POSTGRES_USER, password
+    )
+    admin_connection = admin_url(
+        connect_host, 5432, settings.POSTGRES_USER, password
+    )
     _run_bootstrap(admin_connection)
 
     meta = {
         "instance_ref": ref,
-        "container_name": container_name(workspace_id, "postgres"),
-        "host": host,
+        "container_name": published_host,
+        "host": published_host,
         "port": 5432,
         "admin_user": settings.POSTGRES_USER,
         "admin_password": password,
@@ -157,8 +164,10 @@ def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseRespo
     else:
         instance = _provision_local_instance(body.workspace_id)
 
+    # Prefer container IP for admin SQL from infra-service (DNS can be flaky).
+    connect_host = resolve_container_connect_host(instance.host)
     admin_connection = admin_url(
-        instance.host,
+        connect_host,
         instance.port,
         instance.admin_user,
         instance.admin_password,

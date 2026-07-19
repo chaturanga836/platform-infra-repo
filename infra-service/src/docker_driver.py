@@ -245,27 +245,80 @@ def docker_compose_up(
         )
 
 
-def wait_for_postgres(host: str, port: int, user: str, password: str, timeout: int = 90) -> None:
+def _postgres_ready(host: str, port: int, user: str, password: str) -> Exception | None:
+    """Return None if Postgres accepts connections; otherwise the last error."""
     import psycopg2
 
+    try:
+        conn = psycopg2.connect(
+            host=host,
+            port=port,
+            user=user,
+            password=password,
+            dbname=settings.POSTGRES_DB,
+            connect_timeout=3,
+        )
+        conn.close()
+        return None
+    except Exception as exc:  # noqa: BLE001
+        return exc
+
+
+def wait_for_postgres(
+    host: str, port: int, user: str, password: str, timeout: int = 90
+) -> str:
+    """Wait until Postgres accepts connections.
+
+    Tries DNS hostname first, then container IPs (more reliable when DNS
+    between compose projects is flaky). Ensures the container is on the
+    data-plane network before probing. Returns the host that succeeded
+    so callers can open admin connections without re-hitting DNS failures.
+    """
+    container = host
     deadline = time.time() + timeout
     last_err: Exception | None = None
+    last_detail = f"container {container} not ready"
+
     while time.time() < deadline:
-        try:
-            conn = psycopg2.connect(
-                host=host,
-                port=port,
-                user=user,
-                password=password,
-                dbname=settings.POSTGRES_DB,
-                connect_timeout=3,
-            )
-            conn.close()
-            return
-        except Exception as exc:  # noqa: BLE001
-            last_err = exc
+        inspect = subprocess.run(
+            ["docker", "inspect", "-f", "{{.State.Status}}", container],
+            capture_output=True,
+            text=True,
+        )
+        if inspect.returncode != 0:
+            last_detail = (inspect.stderr or inspect.stdout or "").strip() or last_detail
             time.sleep(2)
-    raise TimeoutError(f"Postgres not ready at {host}:{port}: {last_err}")
+            continue
+
+        state = inspect.stdout.strip()
+        if state != "running":
+            last_detail = f"container state={state}"
+            time.sleep(2)
+            continue
+
+        ensure_container_on_network(container, settings.DATA_PLANE_NETWORK)
+
+        probe_targets = [host, *(_container_ips(container))]
+        seen: set[str] = set()
+        unique_targets: list[str] = []
+        for target in probe_targets:
+            if target and target not in seen:
+                seen.add(target)
+                unique_targets.append(target)
+
+        for target in unique_targets:
+            err = _postgres_ready(target, port, user, password)
+            if err is None:
+                return target
+            last_err = err
+
+        last_detail = (
+            f"postgres://{{{','.join(unique_targets) or host}}}:{port} not ready"
+            + (f": {last_err}" if last_err else "")
+        )
+        time.sleep(2)
+
+    raise TimeoutError(f"Postgres not ready at {host}:{port}: {last_detail}")
 
 
 def wait_for_redis(host: str, port: int, password: str | None = None, timeout: int = 60) -> None:
@@ -344,6 +397,17 @@ def ensure_container_on_network(container: str, network: str) -> None:
         text=True,
         check=False,
     )
+
+
+def resolve_container_connect_host(container: str) -> str:
+    """Return a host that infra-service can reach (prefer container IP).
+
+    Docker DNS between compose projects is sometimes flaky; container IPs on
+    the data-plane network are reliable for admin connections from this service.
+    """
+    ensure_container_on_network(container, settings.DATA_PLANE_NETWORK)
+    ips = _container_ips(container)
+    return ips[0] if ips else container
 
 
 def wait_for_minio(host: str, port: int, timeout: int = 120) -> None:
