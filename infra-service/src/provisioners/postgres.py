@@ -3,24 +3,18 @@
 from __future__ import annotations
 
 import re
-import secrets
 from datetime import datetime, timezone
-from pathlib import Path
+from urllib.parse import urlparse
 
 from sqlalchemy import create_engine, text
 
 from src.config import settings
 from src.docker_driver import (
     admin_url,
-    container_name,
-    docker_compose_up,
-    ensure_data_plane_network,
     instance_ref,
     load_instance_meta,
-    render_compose,
     resolve_container_connect_host,
     save_instance_meta,
-    wait_for_postgres,
 )
 from src.schemas import CreateDatabaseRequest, CreateDatabaseResponse, DatabaseInfo, ServiceInstanceInfo
 
@@ -49,66 +43,8 @@ def _create_schema(admin_connection_url: str, schema_name: str) -> None:
         engine.dispose()
 
 
-def _run_bootstrap(admin_connection_url: str) -> None:
-    bootstrap = settings.STACKS_PATH / "project" / "postgres.bootstrap.pgsql"
-    if not bootstrap.is_file():
-        return
-    sql = bootstrap.read_text(encoding="utf-8")
-    engine = create_engine(admin_connection_url, isolation_level="AUTOCOMMIT")
-    try:
-        with engine.connect() as conn:
-            conn.execute(text(sql))
-    finally:
-        engine.dispose()
-
-
-def _provision_docker_instance(workspace_id: int) -> ServiceInstanceInfo:
-    ref = instance_ref(workspace_id, "postgres")
-    existing = load_instance_meta(ref)
-    if existing:
-        return ServiceInstanceInfo(
-            instance_ref=ref,
-            container_name=existing["container_name"],
-            host=existing["host"],
-            port=int(existing["port"]),
-            admin_user=existing["admin_user"],
-            admin_password=existing["admin_password"],
-            catalog_db=existing.get("catalog_db", settings.POSTGRES_DB),
-            created=False,
-        )
-
-    password = secrets.token_urlsafe(24)
-    ensure_data_plane_network()
-    compose_file = render_compose(workspace_id, "postgres", password)
-    project_name = ref.replace("-", "_")
-    docker_compose_up(compose_file, project_name)
-
-    # Published hostname for other containers on data-plane-net.
-    published_host = container_name(workspace_id, "postgres")
-    # Admin ops from infra-service may need the container IP when DNS is flaky.
-    connect_host = wait_for_postgres(
-        published_host, 5432, settings.POSTGRES_USER, password
-    )
-    admin_connection = admin_url(
-        connect_host, 5432, settings.POSTGRES_USER, password
-    )
-    _run_bootstrap(admin_connection)
-
-    meta = {
-        "instance_ref": ref,
-        "container_name": published_host,
-        "host": published_host,
-        "port": 5432,
-        "admin_user": settings.POSTGRES_USER,
-        "admin_password": password,
-        "catalog_db": settings.POSTGRES_DB,
-    }
-    save_instance_meta(ref, meta)
-    return ServiceInstanceInfo(created=True, catalog_db=settings.POSTGRES_DB, **meta)
-
-
 def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
-    """Dev fallback: one logical instance per workspace on shared LOCAL_POSTGRES_URL."""
+    """One logical instance per workspace on shared LOCAL_POSTGRES_URL."""
     ref = instance_ref(workspace_id, "postgres")
     existing = load_instance_meta(ref)
     if existing:
@@ -122,8 +58,6 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
             catalog_db=existing.get("catalog_db", settings.POSTGRES_DB),
             created=False,
         )
-
-    from urllib.parse import urlparse
 
     parsed = urlparse(settings.LOCAL_POSTGRES_URL)
     user = parsed.username or "postgres"
@@ -142,7 +76,7 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
         "catalog_db": catalog_db,
     }
     save_instance_meta(ref, meta)
-    return ServiceInstanceInfo(created=True, catalog_db=catalog_db, **meta)
+    return ServiceInstanceInfo(created=True, **meta)
 
 
 def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseResponse:
@@ -166,7 +100,7 @@ def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseRespo
             )
     else:
         # Studio project DBs are schemas on LOCAL_POSTGRES_URL / shared postgres.
-        # Never spawn ws-{id}-postgres-db containers (PROVISION_MODE=docker is ignored).
+        # Never spawn ws-{id}-postgres-db containers.
         instance = _provision_local_instance(body.workspace_id)
 
     # Prefer container IP for admin SQL from infra-service (DNS can be flaky).
