@@ -20,6 +20,8 @@ from src.schemas import CreateDatabaseRequest, CreateDatabaseResponse, DatabaseI
 
 SCHEMA_NAME_RE = re.compile(r"^[a-z][a-z0-9_]{0,62}$")
 RESERVED = frozenset({"public", "information_schema", "pg_catalog", "pg_toast"})
+# Legacy default from older infra builds; never a real install catalog.
+_LEGACY_CATALOG_DBS = frozenset({"app", ""})
 
 
 def validate_schema_name(name: str) -> str:
@@ -32,6 +34,21 @@ def validate_schema_name(name: str) -> str:
     if normalized in RESERVED or normalized.startswith("pg_"):
         raise ValueError(f"Name '{normalized}' is reserved")
     return normalized
+
+
+def _shared_catalog_db() -> str:
+    parsed = urlparse(settings.LOCAL_POSTGRES_URL)
+    catalog = (parsed.path or "/").lstrip("/")
+    if catalog and catalog not in _LEGACY_CATALOG_DBS:
+        return catalog
+    return "dtorc_workspace"
+
+
+def _resolve_catalog_db(candidate: str | None) -> str:
+    value = (candidate or "").strip()
+    if value and value not in _LEGACY_CATALOG_DBS:
+        return value
+    return _shared_catalog_db()
 
 
 def _create_schema(admin_connection_url: str, schema_name: str) -> None:
@@ -48,6 +65,10 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
     ref = instance_ref(workspace_id, "postgres")
     existing = load_instance_meta(ref)
     if existing:
+        catalog_db = _resolve_catalog_db(existing.get("catalog_db"))
+        if existing.get("catalog_db") != catalog_db:
+            existing = {**existing, "catalog_db": catalog_db}
+            save_instance_meta(ref, existing)
         return ServiceInstanceInfo(
             instance_ref=ref,
             container_name=existing.get("container_name", "local-shared"),
@@ -55,7 +76,7 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
             port=int(existing["port"]),
             admin_user=existing["admin_user"],
             admin_password=existing["admin_password"],
-            catalog_db=existing.get("catalog_db", settings.POSTGRES_DB),
+            catalog_db=catalog_db,
             created=False,
         )
 
@@ -64,7 +85,7 @@ def _provision_local_instance(workspace_id: int) -> ServiceInstanceInfo:
     password = parsed.password or ""
     host = parsed.hostname or "localhost"
     port = parsed.port or 5432
-    catalog_db = (parsed.path or "/postgres").lstrip("/") or "postgres"
+    catalog_db = _shared_catalog_db()
 
     meta = {
         "instance_ref": ref,
@@ -95,7 +116,7 @@ def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseRespo
                 port=body.existing_instance.port,
                 admin_user=body.existing_instance.admin_user,
                 admin_password=body.existing_instance.admin_password,
-                catalog_db=body.existing_instance.catalog_db,
+                catalog_db=_resolve_catalog_db(body.existing_instance.catalog_db),
                 created=False,
             )
     else:
@@ -110,6 +131,7 @@ def create_postgres_database(body: CreateDatabaseRequest) -> CreateDatabaseRespo
         instance.port,
         instance.admin_user,
         instance.admin_password,
+        instance.catalog_db,
     )
     _create_schema(admin_connection, schema_name)
 

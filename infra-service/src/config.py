@@ -22,7 +22,9 @@ class Settings(BaseSettings):
 
     POSTGRES_IMAGE: str = "postgres:16-alpine"
     POSTGRES_USER: str = "baas"
-    POSTGRES_DB: str = "app"
+    # Bootstrap catalog for dedicated project containers only; shared Studio
+    # schemas use LOCAL_POSTGRES_URL (typically dtorc_workspace).
+    POSTGRES_DB: str = "dtorc_workspace"
 
     REDIS_IMAGE: str = "redis:7.2-alpine"
     LOCAL_REDIS_URL: str = "redis://localhost:6379/1"
