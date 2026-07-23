@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "dtorc_workspace"
 
     REDIS_IMAGE: str = "redis:7.2-alpine"
-    LOCAL_REDIS_URL: str = "redis://localhost:6379/1"
+    LOCAL_REDIS_URL: str = "redis://redis:6379/1"
 
     CENTRIFUGO_IMAGE: str = "centrifugo/centrifugo:v5"
 
